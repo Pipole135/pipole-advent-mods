@@ -3,11 +3,20 @@ name: PIPOLE Adventskalender – Release Scheduler
 
 on:
   schedule:
-    - cron: "0 23 * 11,12 *"
+    # 00:00 Uhr deutscher Zeit am 1. Dezember
+    - cron: "0 23 30 11 *"
+
+    # 00:00 Uhr deutscher Zeit vom 2. bis 24. Dezember
+    - cron: "0 23 1-23 12 *"
+
   workflow_dispatch:
 
 permissions:
   contents: write
+
+concurrency:
+  group: pipole-advent-release
+  cancel-in-progress: false
 
 jobs:
   publish-release:
@@ -21,12 +30,16 @@ jobs:
           DAY=$(TZ=Europe/Berlin date +%d)
           MONTH=$(TZ=Europe/Berlin date +%m)
 
-          if [ "$MONTH" != "12" ] || [ "$DAY" -lt 1 ] || [ "$DAY" -gt 24 ]; then
-            echo "Heute ist kein Adventskalender-Türchen vorgesehen."
+          DAY_NUM=$((10#$DAY))
+
+          if [ "$MONTH" != "12" ] || [ "$DAY_NUM" -lt 1 ] || [ "$DAY_NUM" -gt 24 ]; then
+            echo "Heute ist kein Veröffentlichungstag."
             exit 0
           fi
 
-          TAG="advent-2026-$DAY"
+          TAG="advent-2026-$(printf '%02d' "$DAY_NUM")"
+
+          echo "Prüfe Release: $TAG"
 
           RELEASE_ID=$(gh api --paginate \
             "repos/$GITHUB_REPOSITORY/releases" \
@@ -35,6 +48,7 @@ jobs:
 
           if [ -z "$RELEASE_ID" ]; then
             echo "Kein Release-Entwurf für $TAG gefunden."
+            echo "Entweder fehlt der Entwurf oder er wurde bereits veröffentlicht."
             exit 0
           fi
 
@@ -42,4 +56,4 @@ jobs:
             --method PATCH \
             -F draft=false
 
-          echo "Türchen $DAY wurde veröffentlicht!"
+          echo "Erfolgreich veröffentlicht: $TAG"
